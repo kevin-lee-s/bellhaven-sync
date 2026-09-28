@@ -1,0 +1,5 @@
+# Simplest production setup: the pipeline and the review app share one host and one state.db.
+# Install with: crontab deploy/crontab   (after editing the path)
+# BH_TOKEN is read from /opt/bellhaven-sync/.env (chmod 600), never stored in the crontab.
+CRON_TZ=America/New_York
+15 6 * * * cd /opt/bellhaven-sync && set -a && . ./.env && set +a && flock -n /tmp/bellhaven-sync.lock .venv/bin/python -m bellhaven_sync.pipeline >> logs/pipeline.log 2>&1

@@ -1,0 +1,34 @@
+# Daily proposal run. Writes nothing to the CRM; approvals happen in the review app.
+# State (state.db) lives on an orphan branch so decisions survive between runs and
+# the same database can be pulled by whoever hosts the review app.
+name: bellhaven-sync
+on:
+  schedule:
+    - cron: "15 10 * * *"   # 06:15 US Eastern (EDT), daily
+  workflow_dispatch: {}
+concurrency: bellhaven-sync   # never two runs against the same state at once
+permissions:
+  contents: write
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - name: Restore state
+        run: |
+          git fetch origin sync-state:sync-state 2>/dev/null && git show sync-state:state.db > state.db || echo "first run"
+      - name: Propose changes
+        env:
+          BH_TOKEN: ${{ secrets.BH_TOKEN }}
+          BH_DB: state.db
+        run: python -m bellhaven_sync.pipeline
+      - name: Save state
+        run: |
+          cp state.db /tmp/state.db
+          git config user.name "bellhaven-sync"; git config user.email "sync@users.noreply.github.com"
+          git checkout --orphan tmp-state && git rm -rfq . && cp /tmp/state.db state.db
+          git add state.db && git commit -qm "state $(date -u +%F)" && git push -f origin HEAD:sync-state
